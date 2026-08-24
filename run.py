@@ -14,6 +14,7 @@ import json
 import re
 import socket
 import time
+from datetime import datetime
 
 # --- Color Constants for Terminal Output ---
 class Colors:
@@ -156,13 +157,24 @@ def check_docker_compose():
         return "docker-compose"
     return None
 
+def auto_tune_game_settings(ram_mb):
+    """Auto-tune Minecraft server view distance, simulation distance, and max players based on allocated RAM."""
+    if ram_mb <= 3500:
+        # Low RAM tuning
+        return {"view_dist": 4, "sim_dist": 3, "max_players": 10, "profile": "Low Memory (Aggressive Performance)"}
+    elif ram_mb <= 6500:
+        # Balanced tuning
+        return {"view_dist": 6, "sim_dist": 4, "max_players": 20, "profile": "Balanced Performance"}
+    else:
+        # High performance tuning
+        return {"view_dist": 10, "sim_dist": 6, "max_players": 35, "profile": "High Performance"}
+
 def install_system_dependencies(system, distro):
     """Attempt auto-installation of missing dependencies (Docker, Java, etc.) on unprepared systems."""
     print_header("Checking & Installing System Requirements")
     
     docker_ok = check_command_exists("docker")
     compose_cmd = check_docker_compose()
-    java_ok = check_command_exists("java")
     
     if docker_ok and compose_cmd:
         print_success("Docker & Docker Compose are installed.")
@@ -254,7 +266,79 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
-# --- Main Program Logic ---
+# --- CLI Management Shortcuts ---
+
+def op_player(username):
+    """Grant Operator admin permission to a Minecraft player via RCON."""
+    print_header(f"Granting OP Permission to '{username}'")
+    compose_cmd = check_docker_compose() or "docker compose"
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    minecraft_dir = os.path.join(base_dir, "minecraft")
+    
+    if not os.path.exists(minecraft_dir):
+        print_error("Minecraft server directory not found. Please launch server first: python run.py")
+        return
+
+    cmd = f"{compose_cmd} exec minecraft-server rcon-cli op {username}"
+    res = subprocess.run(cmd, cwd=minecraft_dir, shell=True)
+    if res.returncode == 0:
+        print_success(f"Player '{username}' is now a Server Operator!")
+    else:
+        print_error(f"Failed to OP '{username}'. Ensure the server container is running.")
+
+def show_status():
+    """Show container health, resource stats, and player status."""
+    print_header("Minecraft Server Live Status & Resources")
+    compose_cmd = check_docker_compose() or "docker compose"
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    minecraft_dir = os.path.join(base_dir, "minecraft")
+    
+    if not os.path.exists(minecraft_dir):
+        print_error("Minecraft server directory not found. Please launch server first: python run.py")
+        return
+
+    print_info("Container Status:")
+    subprocess.run(f"{compose_cmd} ps", cwd=minecraft_dir, shell=True)
+    
+    print_info("\nResource Usage (RAM / CPU):")
+    subprocess.run("docker stats --no-stream mc-crossplay-server", shell=True)
+
+def show_logs():
+    """Stream live server logs."""
+    print_header("Streaming Minecraft Server Live Logs (Ctrl+C to exit)")
+    compose_cmd = check_docker_compose() or "docker compose"
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    minecraft_dir = os.path.join(base_dir, "minecraft")
+    
+    if not os.path.exists(minecraft_dir):
+        print_error("Minecraft server directory not found. Please launch server first: python run.py")
+        return
+
+    try:
+        subprocess.run(f"{compose_cmd} logs -f", cwd=minecraft_dir, shell=True)
+    except KeyboardInterrupt:
+        print("\nExited live logs view.")
+
+def create_backup():
+    """Create a local timestamped zip backup of the world data directory."""
+    print_header("Creating Local World Snapshot Backup")
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    minecraft_dir = os.path.join(base_dir, "minecraft")
+    data_dir = os.path.join(minecraft_dir, "data")
+    backups_dir = os.path.join(base_dir, "backups")
+
+    if not os.path.exists(data_dir):
+        print_error("Minecraft data folder does not exist yet.")
+        return
+
+    os.makedirs(backups_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"mc_world_backup_{timestamp}"
+    backup_filepath = os.path.join(backups_dir, backup_filename)
+
+    print_info(f"Archiving world files to: {backup_filepath}.zip ...")
+    shutil.make_archive(backup_filepath, 'zip', data_dir)
+    print_success(f"Backup created successfully! File: {backup_filepath}.zip")
 
 def cleanup_server():
     """Stop container, remove docker volumes, and delete minecraft directory to free up space."""
@@ -275,10 +359,29 @@ def cleanup_server():
         
     print_success("Cleanup complete! All server containers, data, and allocated disk space have been freed.")
 
+# --- Main Program Logic ---
+
 def main():
-    if len(sys.argv) > 1 and sys.argv[1].lower() in ["--cleanup", "-c", "cleanup"]:
-        cleanup_server()
-        return
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        if arg in ["--cleanup", "-c", "cleanup"]:
+            cleanup_server()
+            return
+        elif arg in ["--op", "-op", "op"]:
+            if len(sys.argv) > 2:
+                op_player(sys.argv[2])
+            else:
+                print_error("Please specify a username: python run.py --op <username>")
+            return
+        elif arg in ["--status", "-s", "status"]:
+            show_status()
+            return
+        elif arg in ["--logs", "-l", "logs"]:
+            show_logs()
+            return
+        elif arg in ["--backup", "-b", "backup"]:
+            create_backup()
+            return
 
     print(f"{Colors.BOLD}{Colors.OKGREEN}")
     print(r"""
@@ -305,7 +408,7 @@ def main():
     compose_cmd = install_system_dependencies(system, distro)
 
     # 3. Interactive User Prompts
-    print_header("Server Resource Allocation")
+    print_header("Server Resource Allocation & Auto-Tuning")
     
     # Calculate recommended RAM
     rec_ram = max(2.0, round(total_ram * 0.5, 1))
@@ -318,11 +421,16 @@ def main():
     allocated_ram_str = parse_memory_input(ram_input, default_gb=rec_ram)
     ram_mb = parse_memory_to_mb(allocated_ram_str)
     
-    # Init memory calculation (75% of max)
+    # Auto-Tune game settings based on RAM
+    tune = auto_tune_game_settings(ram_mb)
     init_mb = int(ram_mb * 0.75)
     init_ram_str = f"{init_mb}M"
 
     print_success(f"Allocated Max RAM : {allocated_ram_str} (Init RAM: {init_ram_str})")
+    print_info(f"Hardware Auto-Tuner Profile : {tune['profile']}")
+    print_info(f"  - View Distance        : {tune['view_dist']} chunks")
+    print_info(f"  - Simulation Distance  : {tune['sim_dist']} chunks")
+    print_info(f"  - Max Concurrent Players: {tune['max_players']}")
 
     print(f"\n{Colors.OKCYAN}How much Disk Space (max storage) allocation would you like to reserve?{Colors.ENDC}")
     print(f"  [Default: 20G | Available Free Disk: {free_disk}GB]")
@@ -364,14 +472,16 @@ BLUEMAP_PORT=8100
 VOICE_PORT=24454
 SERVER_TYPE=PURPUR
 MINECRAFT_VERSION=1.20.4
-MAX_PLAYERS=20
+VIEW_DISTANCE={tune['view_dist']}
+SIMULATION_DISTANCE={tune['sim_dist']}
+MAX_PLAYERS={tune['max_players']}
 MOTD=§a§lCrossplay Server §7| §eJava §6& §eBedrock
 MODRINTH_PLUGINS={modrinth_plugins_str}
 """
     env_file_path = os.path.join(minecraft_dir, ".env")
     with open(env_file_path, "w", encoding="utf-8") as f:
         f.write(env_content)
-    print_success("Generated .env configuration file.")
+    print_success("Generated .env configuration file with hardware auto-tuned settings.")
 
     # Copy docker-compose.yml to minecraft folder
     template_compose = os.path.join(base_dir, "docker-compose.yml")
@@ -403,7 +513,7 @@ MODRINTH_PLUGINS={modrinth_plugins_str}
     if enable_backups:
         backup_info = f"""  [☁️] AUTOMATED CLOUD BACKUPS (DriveBackupV2)
       - Status             : Enabled
-      - Authorization      : OP yourself, then run in-game or RCON console:
+      - Authorization      : OP yourself, then run in-game or console:
                              `/drivebackup linkaccount google` (or `onedrive`)
                              Follow the link output in terminal to grant drive access!"""
     else:
@@ -432,7 +542,7 @@ MODRINTH_PLUGINS={modrinth_plugins_str}
 
   [🔗] ZERO-PORT-FORWARDING TUNNEL (Playit.gg)
       - Status             : Installed automatically via Playit plugin
-      - View Tunnel URL    : Check server logs (`{compose_cmd} logs -f`) for secret key link
+      - View Tunnel URL    : Check server logs (`python run.py --logs`) for secret key link
 
   [🛡️] ANTI-GRIEF & LAND CLAIMING (GriefPrevention)
       - Claim Land Tool    : Golden Shovel (`/claim` or right-click corners)
@@ -443,16 +553,12 @@ MODRINTH_PLUGINS={modrinth_plugins_str}
       - LAN IP Address     : {local_ip}
 
 --------------------------------------------------------------------
-  [🔑] ADMIN OPERATOR PERMISSION (RCON):
-      Run the following command to give yourself OP / Admin:
-      
-      cd minecraft
-      {compose_cmd} exec minecraft-server rcon-cli op <YourMinecraftUsername>
---------------------------------------------------------------------
-  [📋] LOGS & MANAGEMENT:
-      - View live logs     : {compose_cmd} logs -f
-      - Stop server        : {compose_cmd} down
-      - Easy Cleanup       : python run.py --cleanup
+  [⚡] CLI MANAGEMENT SHORTCUTS:
+      - Grant Admin / OP   : python run.py --op <YourUsername>
+      - View Live Status   : python run.py --status
+      - Stream Live Logs   : python run.py --logs
+      - Local Zip Backup   : python run.py --backup
+      - Erase & Free Space : python run.py --cleanup
 ====================================================================
 """
 
@@ -470,7 +576,6 @@ MODRINTH_PLUGINS={modrinth_plugins_str}
         
     print_success(f"Connection credentials saved to: {creds_file_1}")
     print_success("Sharing is ready! Paste the address and port above to invite your friends!")
-    print_info("To completely remove the server & delete allocated files later, run: python run.py --cleanup")
 
 if __name__ == "__main__":
     try:

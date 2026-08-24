@@ -31,10 +31,17 @@ services:
 
     volumes:
       - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "mc-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     deploy:
       resources:
         limits:
           memory: ${CONTAINER_MAX_MEMORY:-4G}
+
 
 
 

@@ -36,17 +36,23 @@ python run.py
 ### What `run.py` Does Automatically:
 1. **Detects Environment**: Identifies OS (Windows, Linux distros, macOS), CPU architecture, system RAM, and free disk space.
 2. **Auto-Installs Dependencies**: If Docker, Docker Compose, or Java are missing on a clean machine, `run.py` automatically installs them using your system package manager (`apt`, `dnf`, `pacman`, `winget`, `brew`, or `get.docker.com`).
-3. **Interactive Prompts**: Asks how much RAM and Disk space you want to allocate for the server (with smart defaults based on your hardware).
-4. **Deploys Minecraft Server**: Creates a `./minecraft/` directory, writes optimized `.env` and `docker-compose.yml`, and starts the container in the background.
-5. **Prints Connection Credentials**: Fetches your public WAN IP and formats a shareable connection card for both Java and Bedrock players, saving it to `Join_Credentials.txt`.
+3. **Hardware Auto-Tuning**: Auto-tunes game settings (`VIEW_DISTANCE`, `SIMULATION_DISTANCE`, `MAX_PLAYERS`) based on allocated RAM.
+4. **Interactive Prompts**: Asks how much RAM and Disk space you want to allocate for the server, and whether to enable Cloud Backups.
+5. **Container Health Monitoring**: Includes automated health checks (`mc-health`) that auto-restart the container if the JVM freezes.
+6. **Deploys Minecraft Server**: Creates `./minecraft/`, populates `.env` and `docker-compose.yml`, and starts the container in detached mode.
+7. **Prints Connection Credentials**: Fetches public WAN IP and formats a shareable connection card.
 
-### How to Completely Remove & Free Space:
-When you are done testing or playing and want to erase all allocated files and containers from your PC:
+### CLI Quick Management Commands:
 ```bash
-python run.py --cleanup
+python run.py --op <username>   # Instantly grant Operator/Admin to a player
+python run.py --status          # View real-time container health & RAM/CPU usage
+python run.py --logs            # Stream live server console logs
+python run.py --backup          # Create a local timestamped zip backup of your world
+python run.py --cleanup         # Stop container, erase data, and free disk space
 ```
 
 ---
+
 
 
 ## 2. Setting Up the City Spawn & Trading Stations
