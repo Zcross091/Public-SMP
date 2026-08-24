@@ -1,0 +1,41 @@
+=====================================================
+         MINECRAFT CROSSPLAY SERVER CONNECTION GUIDE
+=====================================================
+
+SERVER PUBLIC IP: 144.24.156.140
+
+-----------------------------------------------------
+1. HOW TO JOIN ON JAVA EDITION (PC / Mac / Linux)
+-----------------------------------------------------
+Supported Versions: 1.8.x through 1.20.x+ (Any version)
+
+Steps:
+1. Open Minecraft Java Edition.
+2. Click "Multiplayer" -> Click "Add Server".
+3. Server Name: Crossplay Server (or any name you like)
+4. Server Address: 144.24.156.140
+   (Port 25565 is default, no need to type :25565)
+5. Click "Done" and click "Join Server".
+
+-----------------------------------------------------
+2. HOW TO JOIN ON BEDROCK EDITION
+   (Android / iOS / Windows 10 & 11 Bedrock / Consoles)
+-----------------------------------------------------
+Steps:
+1. Open Minecraft Bedrock Edition.
+2. Click "Play" -> Go to the "Servers" tab.
+3. Scroll down and click "Add Server".
+4. Fill in the following details:
+   - Server Name:    Crossplay Server
+   - Server Address: 144.24.156.140
+   - Port:           19132 (Default)
+5. Click "Save" or "Play" to join!
+
+* Note: Bedrock players do NOT need a Java account to join (Floodgate is enabled).
+
+-----------------------------------------------------
+3. GIVING OPERATOR (ADMIN) PERMISSIONS
+-----------------------------------------------------
+Run this command in your VPS terminal:
+docker compose exec minecraft-server rcon-cli op <YourMinecraftUsername>
+=====================================================

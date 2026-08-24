@@ -1,0 +1,10 @@
+# Ignore generated minecraft server directory & runtime data
+minecraft/
+data/
+.env
+Join_Credentials.txt
+
+# Python bytecode & cache
+__pycache__/
+*.pyc
+*.pyo

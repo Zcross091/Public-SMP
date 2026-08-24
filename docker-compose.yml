@@ -1,0 +1,44 @@
+services:
+  minecraft-server:
+    image: itzg/minecraft-server:latest
+    container_name: mc-crossplay-server
+    restart: unless-stopped
+    ports:
+      - "${JAVA_PORT:-25565}:25565/tcp"   # Java Edition port
+      - "${BEDROCK_PORT:-19132}:19132/udp" # Bedrock Edition port (Geyser)
+    environment:
+      EULA: "TRUE"
+      TYPE: "${SERVER_TYPE:-PURPUR}"
+      VERSION: "${MINECRAFT_VERSION:-1.20.4}"
+      INIT_MEMORY: "${INIT_MEMORY:-1G}"
+      MAX_MEMORY: "${MAX_MEMORY:-4G}"
+      USE_AIKAR_FLAGS: "true"
+      MAX_TICK_TIME: "60000"
+      VIEW_DISTANCE: "${VIEW_DISTANCE:-6}"
+      SIMULATION_DISTANCE: "${SIMULATION_DISTANCE:-4}"
+      MAX_PLAYERS: "${MAX_PLAYERS:-20}"
+      MOTD: "${MOTD:-§a§lCrossplay Server §7| §eJava §6& §eBedrock}"
+      DIFFICULTY: "normal"
+      PVP: "true"
+
+      PLUGINS: |
+        https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
+        https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
+
+      MODRINTH_PROJECTS: |
+        viaversion
+        viabackwards
+        worldedit
+        worldguard
+        luckperms
+        chunky
+        spark
+        essentialsx
+
+    volumes:
+      - ./data:/data
+    deploy:
+      resources:
+        limits:
+          memory: ${CONTAINER_MAX_MEMORY:-4G}
+
