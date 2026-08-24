@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Cross-Platform Minecraft Crossplay Server Automated Setup & Launcher
-Supports: Windows, Linux (Ubuntu, Debian, Fedora, Arch, CentOS, etc.), and macOS.
+Supports: Windows, Linux (Ubuntu, Debian, Fedora, Arch, CentOS, etc.), macOS, and Android (Termux).
+Supports both Docker Mode and Native Java Mode.
 """
 
 import os
@@ -66,8 +67,15 @@ def run_command(cmd, check=False, capture_output=True, shell=False):
     except Exception as e:
         return subprocess.CompletedProcess(args=cmd, returncode=1, stdout="", stderr=str(e))
 
+def is_termux():
+    """Check if running inside Android Termux environment."""
+    return os.path.exists("/data/data/com.termux") or "com.termux" in os.getenv("PREFIX", "")
+
 def detect_os():
     """Detect operating system details."""
+    if is_termux():
+        return "Android (Termux)", "termux"
+    
     system = platform.system()
     distro = ""
     if system == "Linux":
@@ -86,7 +94,7 @@ def get_total_ram_gb():
     """Detect total system RAM in Gigabytes."""
     system = platform.system()
     try:
-        if system == "Linux":
+        if system in ["Linux", "Android (Termux)"] or is_termux():
             if os.path.exists("/proc/meminfo"):
                 with open("/proc/meminfo", "r") as f:
                     for line in f:
@@ -149,6 +157,8 @@ def check_command_exists(cmd):
 
 def check_docker_compose():
     """Check if 'docker compose' or 'docker-compose' works."""
+    if is_termux():
+        return None  # Termux non-root standard does not run docker daemon
     res1 = run_command("docker compose version")
     if res1.returncode == 0:
         return "docker compose"
@@ -160,8 +170,8 @@ def check_docker_compose():
 def auto_tune_game_settings(ram_mb):
     """Auto-tune Minecraft server view distance, simulation distance, and max players based on allocated RAM."""
     if ram_mb <= 3500:
-        # Low RAM tuning
-        return {"view_dist": 4, "sim_dist": 3, "max_players": 10, "profile": "Low Memory (Aggressive Performance)"}
+        # Low RAM / Mobile phone tuning
+        return {"view_dist": 4, "sim_dist": 3, "max_players": 10, "profile": "Mobile / Low RAM (Aggressive Performance)"}
     elif ram_mb <= 6500:
         # Balanced tuning
         return {"view_dist": 6, "sim_dist": 4, "max_players": 20, "profile": "Balanced Performance"}
@@ -169,10 +179,31 @@ def auto_tune_game_settings(ram_mb):
         # High performance tuning
         return {"view_dist": 10, "sim_dist": 6, "max_players": 35, "profile": "High Performance"}
 
+def download_file(url, target_path, desc):
+    """Download a file with progress notice."""
+    print_info(f"Downloading {desc}...")
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response, open(target_path, 'wb') as out_file:
+            shutil.copyfileobj(response, out_file)
+        print_success(f"Downloaded {desc} successfully.")
+        return True
+    except Exception as e:
+        print_error(f"Failed to download {desc}: {e}")
+        return False
+
 def install_system_dependencies(system, distro):
     """Attempt auto-installation of missing dependencies (Docker, Java, etc.) on unprepared systems."""
     print_header("Checking & Installing System Requirements")
     
+    if is_termux():
+        print_info("Detected Android Termux Environment.")
+        if not check_command_exists("java"):
+            print_info("Installing OpenJDK 21 via Termux package manager (pkg install openjdk-21)...")
+            subprocess.run("pkg update -y && pkg install -y openjdk-21 curl", shell=True)
+        print_success("Termux environment check complete (Native Java Mode).")
+        return "NATIVE_JAVA"
+
     docker_ok = check_command_exists("docker")
     compose_cmd = check_docker_compose()
     
@@ -180,8 +211,7 @@ def install_system_dependencies(system, distro):
         print_success("Docker & Docker Compose are installed.")
         return compose_cmd
     
-    print_warning("Required tools (Docker/Docker Compose) were not found on this machine.")
-    print_info("Attempting automated dependency installation...")
+    print_warning("Docker/Docker Compose was not found. Attempting auto-installation or Native Java setup...")
     
     if system == "Linux":
         print_info(f"Detected Linux distribution: {distro or 'generic'}")
@@ -219,20 +249,22 @@ def install_system_dependencies(system, distro):
             print_info("Installing Docker & Java via Homebrew...")
             subprocess.run("brew install --cask docker", shell=True)
             subprocess.run("brew install docker-compose openjdk", shell=True)
-        else:
-            print_error("Homebrew not found. Please install Docker Desktop for macOS from: https://www.docker.com/products/docker-desktop/")
             
     elif system == "Windows":
         if check_command_exists("winget"):
             print_info("Installing Docker Desktop via Winget...")
             subprocess.run("winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements", shell=True)
-        else:
-            print_error("Winget not found. Please download Docker Desktop for Windows: https://www.docker.com/products/docker-desktop/")
 
     compose_cmd = check_docker_compose()
     if not compose_cmd:
-        print_error("Docker is still not accessible. If you just installed Docker, you may need to restart your terminal or log out and back in.")
-        sys.exit(1)
+        print_warning("Docker is not available. Falling back to Native Java Engine mode...")
+        if not check_command_exists("java"):
+            print_error("Java runtime (JDK) not found. Please install Java 17/21.")
+            if system == "Linux":
+                subprocess.run("sudo apt-get install -y openjdk-21-jre-headless 2>/dev/null", shell=True)
+            elif system == "Windows" and check_command_exists("winget"):
+                subprocess.run("winget install -e --id Oracle.JDK.21", shell=True)
+        return "NATIVE_JAVA"
         
     return compose_cmd
 
@@ -269,9 +301,9 @@ def get_local_ip():
 # --- CLI Management Shortcuts ---
 
 def op_player(username):
-    """Grant Operator admin permission to a Minecraft player via RCON."""
+    """Grant Operator admin permission to a Minecraft player via RCON or native command."""
     print_header(f"Granting OP Permission to '{username}'")
-    compose_cmd = check_docker_compose() or "docker compose"
+    compose_cmd = check_docker_compose()
     base_dir = os.path.abspath(os.path.dirname(__file__))
     minecraft_dir = os.path.join(base_dir, "minecraft")
     
@@ -279,17 +311,20 @@ def op_player(username):
         print_error("Minecraft server directory not found. Please launch server first: python run.py")
         return
 
-    cmd = f"{compose_cmd} exec minecraft-server rcon-cli op {username}"
-    res = subprocess.run(cmd, cwd=minecraft_dir, shell=True)
-    if res.returncode == 0:
-        print_success(f"Player '{username}' is now a Server Operator!")
+    if compose_cmd:
+        cmd = f"{compose_cmd} exec minecraft-server rcon-cli op {username}"
+        res = subprocess.run(cmd, cwd=minecraft_dir, shell=True)
     else:
-        print_error(f"Failed to OP '{username}'. Ensure the server container is running.")
+        print_info(f"In Native Java Mode: Please type `op {username}` directly into your running server terminal window!")
+        res = subprocess.CompletedProcess(args="", returncode=0)
+
+    if res.returncode == 0:
+        print_success(f"Op command processed for '{username}'.")
 
 def show_status():
     """Show container health, resource stats, and player status."""
     print_header("Minecraft Server Live Status & Resources")
-    compose_cmd = check_docker_compose() or "docker compose"
+    compose_cmd = check_docker_compose()
     base_dir = os.path.abspath(os.path.dirname(__file__))
     minecraft_dir = os.path.join(base_dir, "minecraft")
     
@@ -297,16 +332,18 @@ def show_status():
         print_error("Minecraft server directory not found. Please launch server first: python run.py")
         return
 
-    print_info("Container Status:")
-    subprocess.run(f"{compose_cmd} ps", cwd=minecraft_dir, shell=True)
-    
-    print_info("\nResource Usage (RAM / CPU):")
-    subprocess.run("docker stats --no-stream mc-crossplay-server", shell=True)
+    if compose_cmd:
+        print_info("Container Status:")
+        subprocess.run(f"{compose_cmd} ps", cwd=minecraft_dir, shell=True)
+        print_info("\nResource Usage (RAM / CPU):")
+        subprocess.run("docker stats --no-stream mc-crossplay-server", shell=True)
+    else:
+        print_info("Running in Native Java Mode.")
 
 def show_logs():
     """Stream live server logs."""
     print_header("Streaming Minecraft Server Live Logs (Ctrl+C to exit)")
-    compose_cmd = check_docker_compose() or "docker compose"
+    compose_cmd = check_docker_compose()
     base_dir = os.path.abspath(os.path.dirname(__file__))
     minecraft_dir = os.path.join(base_dir, "minecraft")
     
@@ -314,17 +351,24 @@ def show_logs():
         print_error("Minecraft server directory not found. Please launch server first: python run.py")
         return
 
-    try:
-        subprocess.run(f"{compose_cmd} logs -f", cwd=minecraft_dir, shell=True)
-    except KeyboardInterrupt:
-        print("\nExited live logs view.")
+    if compose_cmd:
+        try:
+            subprocess.run(f"{compose_cmd} logs -f", cwd=minecraft_dir, shell=True)
+        except KeyboardInterrupt:
+            print("\nExited live logs view.")
+    else:
+        latest_log = os.path.join(minecraft_dir, "logs", "latest.log")
+        if os.path.exists(latest_log):
+            subprocess.run(f"tail -f {latest_log}", shell=True)
+        else:
+            print_error("No log file found at logs/latest.log.")
 
 def create_backup():
     """Create a local timestamped zip backup of the world data directory."""
     print_header("Creating Local World Snapshot Backup")
     base_dir = os.path.abspath(os.path.dirname(__file__))
     minecraft_dir = os.path.join(base_dir, "minecraft")
-    data_dir = os.path.join(minecraft_dir, "data")
+    data_dir = os.path.join(minecraft_dir, "data") if os.path.exists(os.path.join(minecraft_dir, "data")) else minecraft_dir
     backups_dir = os.path.join(base_dir, "backups")
 
     if not os.path.exists(data_dir):
@@ -343,13 +387,14 @@ def create_backup():
 def cleanup_server():
     """Stop container, remove docker volumes, and delete minecraft directory to free up space."""
     print_header("Cleaning Up Minecraft Server & Freeing Space")
-    compose_cmd = check_docker_compose() or "docker compose"
+    compose_cmd = check_docker_compose()
     base_dir = os.path.abspath(os.path.dirname(__file__))
     minecraft_dir = os.path.join(base_dir, "minecraft")
     
     if os.path.exists(minecraft_dir):
-        print_info("Stopping container and removing volumes...")
-        subprocess.run(f"{compose_cmd} down -v", cwd=minecraft_dir, shell=True)
+        if compose_cmd:
+            print_info("Stopping container and removing volumes...")
+            subprocess.run(f"{compose_cmd} down -v", cwd=minecraft_dir, shell=True)
         print_info("Deleting minecraft server folder...")
         shutil.rmtree(minecraft_dir, ignore_errors=True)
     
@@ -358,6 +403,60 @@ def cleanup_server():
         os.remove(creds_file)
         
     print_success("Cleanup complete! All server containers, data, and allocated disk space have been freed.")
+
+def run_native_java_server(minecraft_dir, allocated_ram_str, tune):
+    """Native Java Engine Launcher (For Android Termux or non-docker setups)."""
+    print_header("Setting Up Native Purpur Java Server Engine (Termux/Mobile Friendly)")
+    
+    plugins_dir = os.path.join(minecraft_dir, "plugins")
+    os.makedirs(plugins_dir, exist_ok=True)
+    
+    # 1. Download Purpur 1.20.4 Jar
+    purpur_jar = os.path.join(minecraft_dir, "purpur.jar")
+    if not os.path.exists(purpur_jar):
+        purpur_url = "https://api.purpurmc.org/v2/purpur/1.20.4/latest/download"
+        download_file(purpur_url, purpur_jar, "Purpur 1.20.4 Server Jar")
+        
+    # 2. Download Geyser & Floodgate plugins for Bedrock crossplay
+    geyser_jar = os.path.join(plugins_dir, "Geyser-Spigot.jar")
+    if not os.path.exists(geyser_jar):
+        geyser_url = "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot"
+        download_file(geyser_url, geyser_jar, "Geyser Crossplay Plugin")
+        
+    floodgate_jar = os.path.join(plugins_dir, "Floodgate-Spigot.jar")
+    if not os.path.exists(floodgate_jar):
+        floodgate_url = "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot"
+        download_file(floodgate_url, floodgate_jar, "Floodgate Auth Plugin")
+
+    # 3. Accept EULA automatically
+    eula_file = os.path.join(minecraft_dir, "eula.txt")
+    with open(eula_file, "w") as f:
+        f.write("eula=true\n")
+        
+    # 4. Generate auto-tuned server.properties
+    props_file = os.path.join(minecraft_dir, "server.properties")
+    if not os.path.exists(props_file):
+        props_content = f"""server-port=25565
+query.port=25565
+enable-rcon=true
+rcon.port=25575
+rcon.password=minecraft
+view-distance={tune['view_dist']}
+simulation-distance={tune['sim_dist']}
+max-players={tune['max_players']}
+motd=§a§lCrossplay Server §7| §eJava §6& §eBedrock
+pvp=true
+online-mode=true
+"""
+        with open(props_file, "w") as f:
+            f.write(props_content)
+
+    print_success("Native Java Server files prepared successfully!")
+    print_header("Launching Native Minecraft Purpur JVM Engine")
+    
+    java_cmd = f"java -Xms1G -Xmx{allocated_ram_str} -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -jar purpur.jar nogui"
+    print_info(f"Executing: {java_cmd}")
+    subprocess.run(java_cmd, cwd=minecraft_dir, shell=True)
 
 # --- Main Program Logic ---
 
@@ -439,11 +538,13 @@ def main():
     
     print_success(f"Reserved Disk Limit: {allocated_disk_str}")
 
-    # Prompt for optional Cloud Backups
-    print(f"\n{Colors.OKCYAN}Would you like to enable Automated Cloud World Backups (Google Drive / OneDrive)?{Colors.ENDC}")
-    print(f"  [Allows auto-syncing world saves to your personal cloud storage]")
-    backup_choice = input(f"{Colors.BOLD}Enable Cloud Backups (DriveBackupV2)? (y/n) [n]: {Colors.ENDC}").strip().lower()
-    enable_backups = backup_choice in ['y', 'yes']
+    # Prompt for optional Cloud Backups (Docker mode only)
+    enable_backups = False
+    if compose_cmd != "NATIVE_JAVA":
+        print(f"\n{Colors.OKCYAN}Would you like to enable Automated Cloud World Backups (Google Drive / OneDrive)?{Colors.ENDC}")
+        print(f"  [Allows auto-syncing world saves to your personal cloud storage]")
+        backup_choice = input(f"{Colors.BOLD}Enable Cloud Backups (DriveBackupV2)? (y/n) [n]: {Colors.ENDC}").strip().lower()
+        enable_backups = backup_choice in ['y', 'yes']
 
     base_plugins = "viaversion viabackwards worldedit worldguard luckperms chunky spark essentialsx bluemap simple-voice-chat skinrestorer griefprevention playit"
     if enable_backups:
@@ -451,7 +552,8 @@ def main():
         print_success("Cloud Backups (DriveBackupV2) enabled!")
     else:
         modrinth_plugins_str = base_plugins
-        print_info("Cloud Backups skipped.")
+        if compose_cmd != "NATIVE_JAVA":
+            print_info("Cloud Backups skipped.")
 
     # 4. Folder Setup
     base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -460,6 +562,11 @@ def main():
     
     os.makedirs(data_dir, exist_ok=True)
     print_success(f"Created Minecraft server directory: {minecraft_dir}")
+
+    # If Docker is not available or Termux Native mode is selected
+    if compose_cmd == "NATIVE_JAVA":
+        run_native_java_server(minecraft_dir, allocated_ram_str, tune)
+        return
 
     # 5. Environment & Docker Compose Generation
     env_content = f"""# Automatically Generated Minecraft Server Environment Config

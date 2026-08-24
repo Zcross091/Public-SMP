@@ -53,6 +53,26 @@ python run.py --cleanup         # Stop container, erase data, and free disk spac
 
 ---
 
+## Running on Android Phones (Termux Setup)
+
+You can run this Minecraft Crossplay server directly on Android devices (6–12 GB RAM recommended):
+
+1. **Install Termux** on your Android phone (from [F-Droid](https://f-droid.org/packages/com.termux/)).
+2. **Install Java & Python** in Termux:
+   ```bash
+   pkg update -y && pkg install -y openjdk-21 python git curl
+   ```
+3. **Clone & Launch**:
+   ```bash
+   git clone https://github.com/Zcross091/Public-SMP.git
+   cd Public-SMP
+   python run.py
+   ```
+   *`run.py` detects Termux, downloads Purpur 1.20.4 + Geyser & Floodgate, auto-tunes RAM for your phone's processor, and launches native Java mode!*
+
+---
+
+
 
 
 ## 2. Setting Up the City Spawn & Trading Stations
