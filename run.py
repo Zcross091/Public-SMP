@@ -509,6 +509,7 @@ MODRINTH_PLUGINS={modrinth_plugins_str}
     print_info("Fetching public IP and connection details...")
     public_ip = get_public_ip()
     local_ip = get_local_ip()
+    is_codespace = os.getenv("CODESPACES") == "true" or "github.dev" in os.getenv("GITHUB_REPOSITORY", "") or os.path.exists("/workspaces")
 
     if enable_backups:
         backup_info = f"""  [☁️] AUTOMATED CLOUD BACKUPS (DriveBackupV2)
@@ -520,29 +521,41 @@ MODRINTH_PLUGINS={modrinth_plugins_str}
         backup_info = f"""  [☁️] AUTOMATED CLOUD BACKUPS (DriveBackupV2)
       - Status             : Disabled (Skipped by user during setup)"""
 
-    credentials_card = f"""
-====================================================================
-               MINECRAFT CROSSPLAY SERVER CREDENTIALS
-====================================================================
+    if is_codespace:
+        codespace_name = os.getenv("CODESPACE_NAME", "")
+        network_section = f"""  [⚠️] RUNNING IN GITHUB CODESPACES
+      - Azure Egress IP    : {public_ip} (Blocked for direct incoming connections by GitHub)
+      
+      [★] HOW TO CONNECT ON JAVA EDITION:
+          1. Click the 'Ports' tab in VS Code (next to Terminal).
+          2. Right-click Port 25565 -> Set 'Port Visibility' to 'PUBLIC'.
+          3. Copy the Forwarded Address (e.g., {codespace_name}-25565.app.github.dev) into Minecraft!
 
-  [★] JAVA EDITION (PC / Mac / Linux)
+      [★] HOW TO CONNECT ON BEDROCK & JAVA (Playit.gg Zero-Config Tunnel):
+          Run `python run.py --logs` in terminal and click the Playit setup link
+          to get a permanent custom domain (e.g., myserver.joinmc.link)!"""
+    else:
+        network_section = f"""  [★] JAVA EDITION (PC / Mac / Linux)
       - Supported Versions : 1.8.x through Latest (1.20.x+)
       - Server Address     : {public_ip}
       - Default Port       : 25565
 
   [★] BEDROCK EDITION (Android / iOS / Windows Bedrock / Consoles)
       - Server Address     : {public_ip}
-      - Server Port        : 19132
+      - Server Port        : 19132"""
+
+    credentials_card = f"""
+====================================================================
+               MINECRAFT CROSSPLAY SERVER CREDENTIALS
+====================================================================
+
+{network_section}
 
   [🌐] 3D INTERACTIVE WEB MAP (BlueMap)
-      - Web Map URL        : http://{public_ip}:8100
+      - Web Map URL        : http://{public_ip}:8100 (or check Ports tab for Port 8100)
 
   [🎙️] PROXIMITY VOICE CHAT (Simple Voice Chat)
       - Voice Chat Port    : 24454 UDP
-
-  [🔗] ZERO-PORT-FORWARDING TUNNEL (Playit.gg)
-      - Status             : Installed automatically via Playit plugin
-      - View Tunnel URL    : Check server logs (`python run.py --logs`) for secret key link
 
   [🛡️] ANTI-GRIEF & LAND CLAIMING (GriefPrevention)
       - Claim Land Tool    : Golden Shovel (`/claim` or right-click corners)
