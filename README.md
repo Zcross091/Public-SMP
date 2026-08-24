@@ -8,15 +8,20 @@ When you run `docker compose up -d`, Docker will automatically:
 3. **Open Dual Ports**:
    - `25565 TCP` for **Java Edition** players.
    - `19132 UDP` for **Bedrock Edition** players (iOS, Android, Windows Bedrock, Xbox/PS/Switch).
-4. **Auto-Install Essential Plugins**:
-   - **Geyser & Floodgate**: Enables Bedrock players to join without needing Java Minecraft accounts.
-   - **ViaVersion & ViaBackwards**: Allows players on older (1.8 - 1.19) or newer (1.20.x+) versions to connect seamlessly.
-   - **WorldGuard & WorldEdit**: Used to make the spawn city indestructible.
-   - **Shopkeepers**: Creates invincible custom NPC villagers with trading stations.
-   - **EssentialsX + EssentialsXSpawn**: Manages `/spawn`, `/setspawn`, and player commands.
-   - **LuckPerms**: Permission manager for admin/player ranks.
-   - **Chunky**: World pre-generator to eliminate chunk-loading lag.
-   - **Spark**: Real-time server performance and TPS profiler.
+ 4. **Auto-Install Essential Plugins**:
+    - **Geyser & Floodgate**: Enables Bedrock players to join without needing Java Minecraft accounts.
+    - **BlueMap**: Live 3D interactive web map accessible at `http://your-ip:8100`.
+    - **Simple Voice Chat**: Proximity voice chat support (`24454 UDP`).
+    - **Playit.gg**: Zero-port-forwarding tunnel for players behind CGNAT / home routers.
+    - **DriveBackupV2**: Automated world backups to Google Drive, OneDrive, or Dropbox.
+    - **SkinRestorer**: Crossplay skin rendering fix for Bedrock & Java players.
+    - **GriefPrevention**: Easy land claiming with a golden shovel.
+    - **ViaVersion & ViaBackwards**: Allows players on older (1.8 - 1.19) or newer (1.20.x+) versions to connect.
+    - **WorldGuard & WorldEdit**: Used to make spawn cities and build zones protected.
+    - **EssentialsX + EssentialsXSpawn**: Manages `/spawn`, `/setspawn`, and player commands.
+    - **LuckPerms**: Permission manager for admin/player ranks.
+    - **Chunky**: World pre-generator to eliminate chunk-loading lag.
+    - **Spark**: Real-time server performance and TPS profiler.
 
 ---
 

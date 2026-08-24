@@ -346,6 +346,8 @@ MAX_MEMORY={allocated_ram_str}
 CONTAINER_MAX_MEMORY={allocated_ram_str}
 JAVA_PORT=25565
 BEDROCK_PORT=19132
+BLUEMAP_PORT=8100
+VOICE_PORT=24454
 SERVER_TYPE=PURPUR
 MINECRAFT_VERSION=1.20.4
 MAX_PLAYERS=20
@@ -396,6 +398,19 @@ MOTD=§a§lCrossplay Server §7| §eJava §6& §eBedrock
   [★] BEDROCK EDITION (Android / iOS / Windows Bedrock / Consoles)
       - Server Address     : {public_ip}
       - Server Port        : 19132
+
+  [🌐] 3D INTERACTIVE WEB MAP (BlueMap)
+      - Web Map URL        : http://{public_ip}:8100
+
+  [🎙️] PROXIMITY VOICE CHAT (Simple Voice Chat)
+      - Voice Chat Port    : 24454 UDP
+
+  [🔗] ZERO-PORT-FORWARDING TUNNEL (Playit.gg)
+      - Status             : Installed automatically via Playit plugin
+      - View Tunnel URL    : Check server logs (`{compose_cmd} logs -f`) for secret key link
+
+  [🛡️] ANTI-GRIEF & LAND CLAIMING (GriefPrevention)
+      - Claim Land Tool    : Golden Shovel (`/claim` or right-click corners)
 
   [i] LOCAL LAN ADDRESS (For devices on same home network)
       - LAN IP Address     : {local_ip}

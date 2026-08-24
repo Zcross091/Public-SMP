@@ -4,8 +4,10 @@ services:
     container_name: mc-crossplay-server
     restart: unless-stopped
     ports:
-      - "${JAVA_PORT:-25565}:25565/tcp"   # Java Edition port
-      - "${BEDROCK_PORT:-19132}:19132/udp" # Bedrock Edition port (Geyser)
+      - "${JAVA_PORT:-25565}:25565/tcp"     # Java Edition port
+      - "${BEDROCK_PORT:-19132}:19132/udp"   # Bedrock Edition port (Geyser)
+      - "${BLUEMAP_PORT:-8100}:8100/tcp"     # BlueMap 3D Web Map port
+      - "${VOICE_PORT:-24454}:24454/udp"     # Simple Voice Chat port
     environment:
       EULA: "TRUE"
       TYPE: "${SERVER_TYPE:-PURPUR}"
@@ -34,6 +36,12 @@ services:
         chunky
         spark
         essentialsx
+        bluemap
+        simple-voice-chat
+        drivebackupv2
+        skinrestorer
+        griefprevention
+        playit
 
     volumes:
       - ./data:/data
@@ -41,4 +49,5 @@ services:
       resources:
         limits:
           memory: ${CONTAINER_MAX_MEMORY:-4G}
+
 
