@@ -331,6 +331,20 @@ def main():
     
     print_success(f"Reserved Disk Limit: {allocated_disk_str}")
 
+    # Prompt for optional Cloud Backups
+    print(f"\n{Colors.OKCYAN}Would you like to enable Automated Cloud World Backups (Google Drive / OneDrive)?{Colors.ENDC}")
+    print(f"  [Allows auto-syncing world saves to your personal cloud storage]")
+    backup_choice = input(f"{Colors.BOLD}Enable Cloud Backups (DriveBackupV2)? (y/n) [n]: {Colors.ENDC}").strip().lower()
+    enable_backups = backup_choice in ['y', 'yes']
+
+    base_plugins = "viaversion viabackwards worldedit worldguard luckperms chunky spark essentialsx bluemap simple-voice-chat skinrestorer griefprevention playit"
+    if enable_backups:
+        modrinth_plugins_str = base_plugins + " drivebackupv2"
+        print_success("Cloud Backups (DriveBackupV2) enabled!")
+    else:
+        modrinth_plugins_str = base_plugins
+        print_info("Cloud Backups skipped.")
+
     # 4. Folder Setup
     base_dir = os.path.abspath(os.path.dirname(__file__))
     minecraft_dir = os.path.join(base_dir, "minecraft")
@@ -352,6 +366,7 @@ SERVER_TYPE=PURPUR
 MINECRAFT_VERSION=1.20.4
 MAX_PLAYERS=20
 MOTD=§a§lCrossplay Server §7| §eJava §6& §eBedrock
+MODRINTH_PLUGINS={modrinth_plugins_str}
 """
     env_file_path = os.path.join(minecraft_dir, ".env")
     with open(env_file_path, "w", encoding="utf-8") as f:
@@ -385,6 +400,16 @@ MOTD=§a§lCrossplay Server §7| §eJava §6& §eBedrock
     public_ip = get_public_ip()
     local_ip = get_local_ip()
 
+    if enable_backups:
+        backup_info = f"""  [☁️] AUTOMATED CLOUD BACKUPS (DriveBackupV2)
+      - Status             : Enabled
+      - Authorization      : OP yourself, then run in-game or RCON console:
+                             `/drivebackup linkaccount google` (or `onedrive`)
+                             Follow the link output in terminal to grant drive access!"""
+    else:
+        backup_info = f"""  [☁️] AUTOMATED CLOUD BACKUPS (DriveBackupV2)
+      - Status             : Disabled (Skipped by user during setup)"""
+
     credentials_card = f"""
 ====================================================================
                MINECRAFT CROSSPLAY SERVER CREDENTIALS
@@ -411,6 +436,8 @@ MOTD=§a§lCrossplay Server §7| §eJava §6& §eBedrock
 
   [🛡️] ANTI-GRIEF & LAND CLAIMING (GriefPrevention)
       - Claim Land Tool    : Golden Shovel (`/claim` or right-click corners)
+
+{backup_info}
 
   [i] LOCAL LAN ADDRESS (For devices on same home network)
       - LAN IP Address     : {local_ip}
